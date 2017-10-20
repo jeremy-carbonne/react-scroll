@@ -42,8 +42,11 @@ var requestAnimationFrameHelper = (function () {
 
 
 var __currentPositionY  = 0;
+var __currentPositionX  = 0;
 var __startPositionY    = 0;
+var __startPositionX    = 0;
 var __targetPositionY   = 0;
+var __targetPositionX   = 0;
 var __progress          = 0;
 var __duration          = 0;
 var __cancel            = false;
@@ -53,6 +56,7 @@ var __containerElement;
 var __to;
 var __start;
 var __deltaTop;
+var __deltaLeft;
 var __percent;
 var __delayTimeout;
 
@@ -66,6 +70,17 @@ var currentPositionY = function() {
     return supportPageOffset ? window.pageYOffset : isCSS1Compat ?
            document.documentElement.scrollTop : document.body.scrollTop;
    }
+};
+
+var currentPositionX = function() {
+  if (__containerElement && __containerElement !== document && __containerElement !== document.body) {
+    return __containerElement.scrollLeft;
+  } else {
+    var supportPageOffset = window.pageXOffset !== undefined;
+    var isCSS1Compat = ((document.compatMode || "") === "CSS1Compat");
+    return supportPageOffset ? window.pageYOffset : isCSS1Compat ?
+      document.documentElement.scrollLeft : document.body.scrollLeft;
+  }
 };
 
 var scrollContainerHeight = function() {
@@ -87,6 +102,50 @@ var scrollContainerHeight = function() {
       html.offsetHeight
     );
   }
+};
+
+
+var startAnimateTopScroll = function(y, options, to, target) {
+
+  window.clearTimeout(__delayTimeout);
+
+
+  if (!options.ignoreCancelEvents) {
+    /*
+     * Sets the cancel trigger
+     */
+
+    cancelEvents.register(function() {
+      __cancel = true;
+    });
+  }
+
+  setContainer(options);
+
+
+  __start           = null;
+  __cancel          = false;
+  __startPositionY  = currentPositionY();
+  __targetPositionY = options.absolute ? y : y + __startPositionY;
+  __deltaTop        = Math.round(__targetPositionY - __startPositionY);
+
+  __duration        = functionWrapper(options.duration)(__deltaTop);
+  __duration        = isNaN(parseFloat(__duration)) ? 1000 : parseFloat(__duration);
+  __to              = to;
+  __target          = target;
+
+  var easing = getAnimationType(options);
+  var easedAnimate = animateTopScroll.bind(null, easing);
+
+  if(options && options.delay > 0) {
+    __delayTimeout = window.setTimeout(function animate() {
+      requestAnimationFrameHelper.call(window, easedAnimate);
+    }, options.delay);
+    return;
+  }
+
+  requestAnimationFrameHelper.call(window, easedAnimate);
+
 };
 
 var animateTopScroll = function(easing, timestamp) {
@@ -129,6 +188,48 @@ var animateTopScroll = function(easing, timestamp) {
 
 };
 
+var animateScroll = function(easing, timestamp) {
+
+  // Cancel on specific events
+  if(__cancel) {
+    if(events.registered['end']) {
+      events.registered['end'](__to, __target, __currentPositionY);
+    }
+    return
+  };
+
+  __deltaTop = Math.round(__targetPositionY - __startPositionY);
+  __deltaLeft = Math.round(__targetPositionX - __startPositionX);
+
+  if (__start === null) {
+    __start = timestamp;
+  }
+
+  __progress = timestamp - __start;
+
+  __percent = (__progress >= __duration ? 1 : easing(__progress/__duration));
+
+  __currentPositionY = __startPositionY + Math.ceil(__deltaTop * __percent);
+  __currentPositionX = __startPositionX + Math.ceil(__deltaLeft * __percent);
+
+  if(__containerElement && __containerElement !== document && __containerElement !== document.body) {
+    __containerElement.scrollTop = __currentPositionY;
+  } else {
+    window.scrollTo(__currentPositionX, __currentPositionY);
+  }
+
+  if(__percent < 1) {
+    var easedAnimate = animateTopScroll.bind(null, easing);
+    requestAnimationFrameHelper.call(window, easedAnimate);
+    return;
+  }
+
+  if(events.registered['end']) {
+    events.registered['end'](__to, __target, __currentPositionY);
+  }
+
+};
+
 var setContainer = function (options) {
   __containerElement = !options
     ? null
@@ -141,7 +242,7 @@ var setContainer = function (options) {
           : document;
 };
 
-var startAnimateTopScroll = function(y, options, to, target) {
+var startAnimateScroll = function(x, y, options, to, target) {
 
   window.clearTimeout(__delayTimeout);
 
@@ -162,8 +263,11 @@ var startAnimateTopScroll = function(y, options, to, target) {
   __start           = null;
   __cancel          = false;
   __startPositionY  = currentPositionY();
+  __startPositionX  = currentPositionX();
   __targetPositionY = options.absolute ? y : y + __startPositionY;
+  __targetPositionX = options.absolute ? x : x + __startPositionX;
   __deltaTop        = Math.round(__targetPositionY - __startPositionY);
+  __deltaLeft        = Math.round(__targetPositionX - __startPositionX);
 
   __duration        = functionWrapper(options.duration)(__deltaTop);
   __duration        = isNaN(parseFloat(__duration)) ? 1000 : parseFloat(__duration);
@@ -171,7 +275,7 @@ var startAnimateTopScroll = function(y, options, to, target) {
   __target          = target;
 
   var easing = getAnimationType(options);
-  var easedAnimate = animateTopScroll.bind(null, easing);
+  var easedAnimate = animateScroll.bind(null, easing);
 
   if(options && options.delay > 0) {
     __delayTimeout = window.setTimeout(function animate() {
@@ -217,6 +321,7 @@ var scrollMore = function(toY, options) {
 
 module.exports = {
   animateTopScroll: startAnimateTopScroll,
+  animateScroll: startAnimateScroll,
   getAnimationType: getAnimationType,
   scrollToTop: scrollToTop,
   scrollToBottom: scrollToBottom,
