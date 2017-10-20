@@ -66,16 +66,26 @@ module.exports = {
       }
 
       props.absolute = true;
-      var scrollOffset;
+      var scrollOffsetY;
+      var scrollOffsetX;
       if (containerElement === document) {
-        scrollOffset = target.offsetTop;
+        scrollOffsetY = target.offsetTop;
+        scrollOffsetX = target.offsetLeft;
       } else {
         var coordinates = target.getBoundingClientRect();
-        scrollOffset = containerElement.scrollTop + coordinates.top - containerElement.offsetTop;
+        scrollOffsetY = containerElement.scrollTop + coordinates.top - containerElement.offsetTop;
+        scrollOffsetX = containerElement.scrollLeft + coordinates.left - containerElement.offsetLeft;
       }
 
-      scrollOffset += (props.offset || 0);
-
+      /*
+       * retro compatibility
+       */
+      if (typeof props.offset === "object") {
+        scrollOffsetY += props.offset.y || 0;
+        scrollOffsetX += props.offset.x || 0;
+      } else {
+        scrollOffsetY += props.offset || 0;
+      }
 
       /*
        * if animate is not provided just scroll into the view
@@ -83,9 +93,10 @@ module.exports = {
       if(!props.smooth) {
         if (containerElement === document) {
           // window.scrollTo accepts only absolute values so body rectangle needs to be subtracted
-          window.scrollTo(0, scrollOffset);
+          window.scrollTo(scrollOffsetX, scrollOffsetY);
         } else {
-          containerElement.scrollTop = scrollOffset;
+          containerElement.scrollTop = scrollOffsetY;
+          containerElement.scrollLeft = scrollOffsetX;
         }
 
         if(events.registered['end']) {
@@ -99,6 +110,6 @@ module.exports = {
        * Animate scrolling
        */
 
-      animateScroll.animateTopScroll(scrollOffset, props, to, target);
+      animateScroll.animateScroll(scrollOffsetX, scrollOffsetY, props, to, target);
   }
 };
