@@ -5,4 +5,6 @@ dist
 bower_components
 .idea/
 npm-debug.log
-build
+examples
+./modules
+.vscode
